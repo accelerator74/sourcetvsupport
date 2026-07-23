@@ -47,7 +47,7 @@ if not os.path.exists(hl2sdk_manifests_path):
 
 
 SdkHelpers = builder.Eval(hl2sdk_manifests_path, {
-    'Project': 'left4tools'
+    'Project': 'sourcetvsupport'
 })
 
 class ExtensionConfig(object):
