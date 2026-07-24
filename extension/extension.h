@@ -75,7 +75,7 @@ public: // SourceHook callbacks
 	void Handler_CHLTVDirector_SetHLTVServer(IHLTVServer* pHLTVServer);
 	void Handler_CHLTVDemoRecorder_RecordStringTables();
 	void Handler_CHLTVDemoRecorder_RecordServerClasses(ServerClass* pClasses);
-	void Handler_CHLTVServer_ReplyChallenge(netadr_s& adr, CBitRead& inmsg);
+	void Handler_CHLTVServer_ReplyChallenge(netadr_s& adr, bf_read& inmsg);
 	void Handler_ISteamGameServer_LogOff();
 	bool Handler_CGameServer_IsPausable() const;
 	void Handler_CHLTVServer_FillServerInfo(SVC_ServerInfo& serverinfo);
