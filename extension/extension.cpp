@@ -79,7 +79,7 @@ CDetour* detour_SteamInternal_GameServer_Init = NULL;
 SH_DECL_HOOK1_void(IHLTVDirector, SetHLTVServer, SH_NOATTRIB, 0, IHLTVServer*);
 SH_DECL_HOOK0_void(CHLTVDemoRecorder, RecordStringTables, SH_NOATTRIB, 0);
 SH_DECL_HOOK1_void(CHLTVDemoRecorder, RecordServerClasses, SH_NOATTRIB, 0, ServerClass*);
-SH_DECL_MANUALHOOK2_void(CBaseServer_ReplyChallenge, 0, 0, 0, netadr_s&, CBitRead&);
+SH_DECL_MANUALHOOK2_void(CBaseServer_ReplyChallenge, 0, 0, 0, netadr_s&, bf_read&);
 SH_DECL_MANUALHOOK1_void(CBaseServer_FillServerInfo, 0, 0, 0, SVC_ServerInfo&);
 SH_DECL_MANUALHOOK1_void(CHLTVServer_FillServerInfo, 0, 0, 0, SVC_ServerInfo&);
 SH_DECL_HOOK0(IServer, IsPausable, const, 0, bool);
@@ -781,7 +781,7 @@ void SMExtension::Handler_CHLTVDemoRecorder_RecordServerClasses(ServerClass* pCl
 	RETURN_META(MRES_SUPERCEDE);
 }
 
-void SMExtension::Handler_CHLTVServer_ReplyChallenge(netadr_s& adr, CBitRead& inmsg)
+void SMExtension::Handler_CHLTVServer_ReplyChallenge(netadr_s& adr, bf_read& inmsg)
 {
 	// rww: check if hooks right instance
 	CBaseServer* _this = META_IFACEPTR(CBaseServer);
