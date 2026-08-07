@@ -616,7 +616,7 @@ void SMExtension::OnGameServer_Init()
 		return;
 	}
 
-	ISteamClient* pSteamClient = static_cast<ISteamClient*>(InvokeCreateInterface(STEAMCLIENT_INTERFACE_VERSION));
+	ISteamClient* pSteamClient = static_cast<ISteamClient*>(InvokeCreateInterface("SteamClient020")); // STEAMCLIENT_INTERFACE_VERSION
 	if (pSteamClient == NULL) {
 		return;
 	}

@@ -80,10 +80,8 @@ jobs:
       - name: Getting SteamWorks SDK
         uses: actions/checkout@v7
         with:
-          repository: shqke/steamworks-sdk
-          ref: v1.55
+          repository: rlabrecque/SteamworksSDK
           path: steamworks-sdk
-          token: ${{ secrets.STEAMWORKS_REPO_ACCESS_TOKEN }}
           
       - name: Setting up Python
         uses: actions/setup-python@v7
@@ -93,7 +91,7 @@ jobs:
       - name: Getting ambuild
         run: |
           python -m pip install wheel
-          pip install git+https://github.com/alliedmodders/ambuild
+          pip install git+https://github.com/accelerator74/ambuild@nog3
           
       - name: Getting hl2sdk-l4d2
         uses: actions/checkout@v7
