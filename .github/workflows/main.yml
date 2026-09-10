@@ -103,7 +103,7 @@ jobs:
           ref: l4d
           path: hl2sdk-l4d
           
-      - name: Checking out hl2sdk-manifests
+      - name: Getting hl2sdk-manifests
         uses: actions/checkout@v7
         with:
           repository: alliedmodders/hl2sdk-manifests
