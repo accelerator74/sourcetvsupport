@@ -179,11 +179,10 @@ KHook::Return<bool> Handler_CBaseServer_IsExclusiveToLobbyConnections(void* pThi
 KHook::Return<CClientFrame*> Handler_CHLTVServer_AddNewFrame(void* pThis, CClientFrame* clientFrame)
 {
 	CHLTVServer* _this = reinterpret_cast<CHLTVServer*>(pThis);
-	CClientFrame* pFrame = CHLTVServer::detour_AddNewFrame->CallOriginal(pThis, clientFrame);
 
 	// bug##: hibernation causes to leak memory when adding new frames to hltv
 	// forcefully remove oldest frames
-	CClientFrame* pFrame = DETOUR_MEMBER_CALL(Handler_CHLTVServer_AddNewFrame)(clientFrame);
+	CClientFrame* pFrame = CHLTVServer::detour_AddNewFrame->CallOriginal(pThis, clientFrame);
 
 	// Only keep the number of packets required to satisfy tv_delay at our tv snapshot rate
 	static ConVarRef tv_delay("tv_delay"), tv_snapshotrate("tv_snapshotrate");
