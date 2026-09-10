@@ -26,20 +26,16 @@ jobs:
           - windows-latest
           
         sm_version:
-          - "1.12"
           - "latest"
           
         include:
-          - meta_version: "1.12"
-            meta_branch: "1.12-dev"
+          - meta_version: "latest"
+            meta_branch: "master"
             
           - os_short: linux
             
-          - sm_version: "1.12"
-            sm_branch: "1.12-dev"
-            
           - sm_version: "latest"
-            sm_branch: "master"
+            sm_branch: "k/sourcehook_alternative"
             
           - os: ubuntu-22.04
             os_short: oldlinux

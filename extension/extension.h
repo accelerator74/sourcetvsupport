@@ -15,6 +15,7 @@
 #include <cstdio>
 
 //#define TV_RELAYTEST
+#include "khook.hpp"
 
 // SDK
 #define TEAM_SPECTATOR			1	// spectator team
@@ -25,9 +26,6 @@
 
 #include <os/am-shared-library.h>
 #include <os/am-path.h>
-
-// Metamod Source
-#include <sourcehook.h>
 
 #if defined _WIN32
 #	define LIBSTEAMAPI_FILE "steam_api.dll"
@@ -48,6 +46,9 @@ enum ESocketIndex_t
 };
 
 class IClient;
+class CBaseServer;
+class CHLTVServer;
+class ISteamGameServer;
 
 #define CONNECTIONLESS_HEADER			0xFFFFFFFF	// all OOB packet start with this sequence
 #define S2C_CHALLENGE			'A' // + challenge value
@@ -64,23 +65,23 @@ public:
 private:
 	bool SetupFromGameConfig(IGameConfig* gc, char* error, int maxlength);
 	bool SetupFromSteamAPILibrary(char* error, int maxlength);
-	bool CreateDetours(char* error, size_t maxlength);
 
 public:
 	void OnGameServer_Init();
 	void OnGameServer_Shutdown();
 	void OnSetHLTVServer(IHLTVServer* pIHLTVServer);
 
-public: // SourceHook callbacks
-	void Handler_CHLTVDirector_SetHLTVServer(IHLTVServer* pHLTVServer);
-	void Handler_CHLTVDemoRecorder_RecordStringTables();
-	void Handler_CHLTVDemoRecorder_RecordServerClasses(ServerClass* pClasses);
-	void Handler_CHLTVServer_ReplyChallenge(netadr_s& adr, bf_read& inmsg);
-	void Handler_ISteamGameServer_LogOff();
-	bool Handler_CGameServer_IsPausable() const;
-	void Handler_CHLTVServer_FillServerInfo(SVC_ServerInfo& serverinfo);
-	void Handler_CServerGameEnts_CheckTransmit(CCheckTransmitInfo* pInfo, const unsigned short* pEdictIndices, int nEdicts);
-	IClient* Handler_CHLTVServer_ConnectClient(netadr_t& adr, int protocol, int challenge, int authProtocol, const char* name,
+public: // KHook callbacks (context = this)
+	KHook::Return<void> Handler_CHLTVDirector_SetHLTVServer(IHLTVDirector* pThis, IHLTVServer* pHLTVServer);
+	KHook::Return<void> Handler_CHLTVDemoRecorder_RecordStringTables(CHLTVDemoRecorder* pThis);
+	KHook::Return<void> Handler_CHLTVDemoRecorder_RecordServerClasses(CHLTVDemoRecorder* pThis, ServerClass* pClasses);
+	KHook::Return<void> Handler_CHLTVServer_ReplyChallenge(CBaseServer* pThis, netadr_s& adr, bf_read& inmsg);
+	KHook::Return<void> Handler_ISteamGameServer_LogOff(ISteamGameServer* pThis);
+	KHook::Return<bool> Handler_CGameServer_IsPausable(const IServer* pThis);
+	KHook::Return<void> Handler_CHLTVServer_FillServerInfo(CBaseServer* pThis, SVC_ServerInfo& serverinfo);
+	KHook::Return<void> Handler_CHLTVServer_FillServerInfo_HLTV(CHLTVServer* pThis, SVC_ServerInfo& serverinfo);
+	KHook::Return<void> Handler_CServerGameEnts_CheckTransmit(IServerGameEnts* pThis, CCheckTransmitInfo* pInfo, const unsigned short* pEdictIndices, int nEdicts);
+	KHook::Return<IClient*> Handler_CHLTVServer_ConnectClient(CBaseServer* pThis, netadr_t& adr, int protocol, int challenge, int authProtocol, const char* name,
 		const char* password, const char* hashedCDkey, int cdKeyLen, CUtlVector<NetMessageCvar_t>& splitScreenClients, bool isClientLowViolence);
 
 public: // SDKExtension

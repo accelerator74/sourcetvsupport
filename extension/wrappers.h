@@ -12,6 +12,8 @@
 #include <igameevents.h>
 #include <networkstringtabledefs.h>
 
+#include "khook.hpp"
+
 extern IServerGameEnts* gameents;
 extern IPlayerInfoManager* playerinfomanager;
 
@@ -31,8 +33,6 @@ extern IPlayerInfoManager* playerinfomanager;
 
 #define TICK_INTERVAL			(gpGlobals->interval_per_tick)
 #define TIME_TO_TICKS( dt )		( (int)( 0.5f + (float)(dt) / TICK_INTERVAL ) )
-
-class CDetour;
 
 void DataTable_WriteClassInfosBuffer(ServerClass* pClasses, bf_write* pBuf)
 {
@@ -59,10 +59,6 @@ void DataTable_WriteClassInfosBuffer(ServerClass* pClasses, bf_write* pBuf)
 	}
 }
 
-extern int shookid_CHLTVDemoRecorder_RecordStringTables;
-extern int shookid_CHLTVDemoRecorder_RecordServerClasses;
-extern int shookid_SteamGameServer_LogOff;
-
 extern void* pfn_DataTable_WriteSendTablesBuffer;
 extern void* pfn_SteamGameServer_GetHSteamPipe;
 extern void* pfn_SteamGameServer_GetHSteamUser;
@@ -70,7 +66,7 @@ extern void* pfn_SteamInternal_CreateInterface;
 extern void* pfn_SteamInternal_GameServer_Init;
 extern void* pfn_OpenSocketInternal;
 
-extern CDetour* detour_SteamInternal_GameServer_Init;
+extern KHook::Function<bool, uint32, uint16, uint16, uint16, EServerMode, const char*>* detour_SteamInternal_GameServer_Init;
 
 void InvokeDataTable_WriteSendTablesBuffer(ServerClass* pClasses, bf_write* buf)
 {
@@ -112,7 +108,7 @@ public:
 
 	static void* pfn_SendFullConnectEvent;
 
-	static CDetour* detour_SendFullConnectEvent;
+	static KHook::Function<void, void*>* detour_SendFullConnectEvent;
 
 	CSteamID& m_SteamID()
 	{
@@ -133,7 +129,7 @@ public:
 
 	static void* pfn_IsExclusiveToLobbyConnections;
 
-	static CDetour* detour_IsExclusiveToLobbyConnections;
+	static KHook::Function<bool, void*>* detour_IsExclusiveToLobbyConnections;
 
 	static ICallWrapper* vcall_GetChallengeNr;
 	static ICallWrapper* vcall_GetChallengeType;
@@ -194,14 +190,15 @@ public:
 
 	static int vtblindex_FillServerInfo;
 
-	static int shookid_ReplyChallenge;
-	static int shookid_FillServerInfo;
-	static int shookid_hltv_FillServerInfo;
-	static int shookid_ConnectClient;
-
 	static void* pfn_AddNewFrame;
+	static KHook::Function<CClientFrame*, void*, CClientFrame*>* detour_AddNewFrame;
 
-	static CDetour* detour_AddNewFrame;
+	// KHook virtual/manual hooks (replacing SourceHook ids)
+	static KHook::Virtual<CBaseServer, void, netadr_s&, bf_read&>* hook_ReplyChallenge;
+	static KHook::Virtual<CBaseServer, void, SVC_ServerInfo&>* hook_FillServerInfo;
+	static KHook::Virtual<CHLTVServer, void, SVC_ServerInfo&>* hook_hltv_FillServerInfo;
+	static KHook::Virtual<CBaseServer, IClient*, netadr_t&, int, int, int, const char*,
+		const char*, const char*, int, CUtlVector<NetMessageCvar_t>&, bool>* hook_ConnectClient;
 
 	CHLTVDemoRecorder& m_DemoRecorder()
 	{
@@ -222,7 +219,7 @@ public:
 class CGameServer
 {
 public:
-	static int shookid_IsPausable;
+	static KHook::Virtual<IServer, bool>* hook_IsPausable;
 };
 
 class CSteam3Server
@@ -230,7 +227,7 @@ class CSteam3Server
 public:
 	static void* pfn_NotifyClientDisconnect;
 
-	static CDetour* detour_NotifyClientDisconnect;
+	static KHook::Function<void, void*, CBaseClient*>* detour_NotifyClientDisconnect;
 };
 
 class CFrameSnapshotManager
@@ -243,7 +240,7 @@ public:
 
 	static void* pfn_LevelChanged;
 
-	static CDetour* detour_LevelChanged;
+	static KHook::Function<void, void*>* detour_LevelChanged;
 
 	CClassMemoryPoolExt<PackedEntity>& m_PackedEntitiesPool()
 	{
@@ -266,7 +263,7 @@ class CBaseAbility :
 {
 public:
 	static void* pfn_ShouldTransmit;
-	static CDetour* detour_ShouldTransmit;
+	static KHook::Function<int, void*, const CCheckTransmitInfo*>* detour_ShouldTransmit;
 };
 
 class CBasePlayer :
@@ -341,9 +338,7 @@ class HitAnnouncement
 {
 public:
 	static void* pfn_ForEachTerrorPlayer;
-
-	static CDetour* detour_ForEachTerrorPlayer;
-
+	static KHook::Function<bool, HitAnnouncement&>* detour_ForEachTerrorPlayer;
 	static int pzMsgId;
 
 #if defined _WIN32
@@ -363,6 +358,13 @@ public:
 	int m_iDamageAmount;
 	bool m_bIgnoreTeamCheck;
 };
+
+// Global KHook objects for interface virtuals
+extern KHook::Virtual<IHLTVDirector, void, IHLTVServer*>* g_HookSetHLTVServer;
+extern KHook::Virtual<CHLTVDemoRecorder, void>* g_HookRecordStringTables;
+extern KHook::Virtual<CHLTVDemoRecorder, void, ServerClass*>* g_HookRecordServerClasses;
+extern KHook::Virtual<ISteamGameServer, void>* g_HookSteamGameServer_LogOff;
+extern KHook::Virtual<IServerGameEnts, void, CCheckTransmitInfo*, const unsigned short*, int>* g_HookCheckTransmit;
 
 CBasePlayer* UTIL_PlayerByIndex(int playerIndex)
 {

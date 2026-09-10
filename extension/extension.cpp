@@ -1,4 +1,4 @@
-﻿#include "extension.h"
+#include "extension.h"
 #include "wrappers.h"
 
 #include "sdk/public/engine/inetsupport.h"
@@ -32,39 +32,41 @@ int CBaseServer::vtblindex_ReplyChallenge = 0;
 int CBaseServer::vtblindex_FillServerInfo = 0;
 int CBaseServer::vtblindex_ConnectClient = 0;
 void* CBaseServer::pfn_IsExclusiveToLobbyConnections = NULL;
-CDetour* CBaseServer::detour_IsExclusiveToLobbyConnections = NULL;
+KHook::Function<bool, void*>* CBaseServer::detour_IsExclusiveToLobbyConnections = NULL;
 ICallWrapper* CBaseServer::vcall_GetChallengeNr = NULL;
 ICallWrapper* CBaseServer::vcall_GetChallengeType = NULL;
 int CHLTVServer::offset_m_DemoRecorder = 0;
 int CHLTVServer::offset_CClientFrameManager = 0;
 int CHLTVServer::offset_CBaseServer = 0;
 int CHLTVServer::vtblindex_FillServerInfo = 0;
-int CHLTVServer::shookid_ReplyChallenge = 0;
-int CHLTVServer::shookid_FillServerInfo = 0;
-int CHLTVServer::shookid_hltv_FillServerInfo = 0;
-int CHLTVServer::shookid_ConnectClient = 0;
 void* CHLTVServer::pfn_AddNewFrame = NULL;
-CDetour* CHLTVServer::detour_AddNewFrame = NULL;
-int CGameServer::shookid_IsPausable = 0;
+
+KHook::Function<CClientFrame*, void*, CClientFrame*>* CHLTVServer::detour_AddNewFrame = NULL;
+KHook::Virtual<CBaseServer, void, netadr_s&, bf_read&>* CHLTVServer::hook_ReplyChallenge = NULL;
+KHook::Virtual<CBaseServer, void, SVC_ServerInfo&>* CHLTVServer::hook_FillServerInfo = NULL;
+KHook::Virtual<CHLTVServer, void, SVC_ServerInfo&>* CHLTVServer::hook_hltv_FillServerInfo = NULL;
+KHook::Virtual<CBaseServer, IClient*, netadr_t&, int, int, int, const char*,
+	const char*, const char*, int, CUtlVector<NetMessageCvar_t>&, bool>* CHLTVServer::hook_ConnectClient = NULL;
+
+KHook::Virtual<IServer, bool>* CGameServer::hook_IsPausable = NULL;
+
 int CBaseClient::offset_m_SteamID = 0;
 void* CBaseClient::pfn_SendFullConnectEvent = NULL;
-CDetour* CBaseClient::detour_SendFullConnectEvent = NULL;
+KHook::Function<void, void*>* CBaseClient::detour_SendFullConnectEvent = NULL;
+
 void* CSteam3Server::pfn_NotifyClientDisconnect = NULL;
-CDetour* CSteam3Server::detour_NotifyClientDisconnect = NULL;
+KHook::Function<void, void*, CBaseClient*>* CSteam3Server::detour_NotifyClientDisconnect = NULL;
+
 int CFrameSnapshotManager::offset_m_PackedEntitiesPool = 0;
 void* CFrameSnapshotManager::pfn_LevelChanged = NULL;
-CDetour* CFrameSnapshotManager::detour_LevelChanged = NULL;
+KHook::Function<void, void*>* CFrameSnapshotManager::detour_LevelChanged = NULL;
+
 void* CBaseAbility::pfn_ShouldTransmit = NULL;
-CDetour* CBaseAbility::detour_ShouldTransmit = NULL;
+KHook::Function<int, void*, const CCheckTransmitInfo*>* CBaseAbility::detour_ShouldTransmit = NULL;
+
 void* HitAnnouncement::pfn_ForEachTerrorPlayer = NULL;
-CDetour* HitAnnouncement::detour_ForEachTerrorPlayer = NULL;
-
+KHook::Function<bool, HitAnnouncement&>* HitAnnouncement::detour_ForEachTerrorPlayer = NULL;
 int HitAnnouncement::pzMsgId = 0;
-
-int shookid_CHLTVDemoRecorder_RecordStringTables = 0;
-int shookid_CHLTVDemoRecorder_RecordServerClasses = 0;
-int shookid_SteamGameServer_LogOff = 0;
-int shookid_CServerGameEnts_CheckTransmit = 0;
 
 void* pfn_DataTable_WriteSendTablesBuffer = NULL;
 void* pfn_SteamGameServer_GetHSteamPipe = NULL;
@@ -73,25 +75,13 @@ void* pfn_SteamInternal_CreateInterface = NULL;
 void* pfn_SteamInternal_GameServer_Init = NULL;
 void* pfn_OpenSocketInternal = NULL;
 
-CDetour* detour_SteamInternal_GameServer_Init = NULL;
+KHook::Function<bool, uint32, uint16, uint16, uint16, EServerMode, const char*>* detour_SteamInternal_GameServer_Init = NULL;
 
-// SourceHook
-SH_DECL_HOOK1_void(IHLTVDirector, SetHLTVServer, SH_NOATTRIB, 0, IHLTVServer*);
-SH_DECL_HOOK0_void(CHLTVDemoRecorder, RecordStringTables, SH_NOATTRIB, 0);
-SH_DECL_HOOK1_void(CHLTVDemoRecorder, RecordServerClasses, SH_NOATTRIB, 0, ServerClass*);
-SH_DECL_MANUALHOOK2_void(CBaseServer_ReplyChallenge, 0, 0, 0, netadr_s&, bf_read&);
-SH_DECL_MANUALHOOK1_void(CBaseServer_FillServerInfo, 0, 0, 0, SVC_ServerInfo&);
-SH_DECL_MANUALHOOK1_void(CHLTVServer_FillServerInfo, 0, 0, 0, SVC_ServerInfo&);
-SH_DECL_HOOK0(IServer, IsPausable, const, 0, bool);
-#if SOURCE_ENGINE == SE_LEFT4DEAD2
-SH_DECL_HOOK0_void(ISteamGameServer, LogOff, SH_NOATTRIB, 0);
-#endif
-SH_DECL_HOOK3_void(IServerGameEnts, CheckTransmit, SH_NOATTRIB, 0, CCheckTransmitInfo*, const unsigned short*, int);
-SH_DECL_MANUALHOOK10(CHLTVServer_ConnectClient, 0, 0, 0, IClient*, netadr_t&, int, int, int, const char*,
-	const char*, const char*, int, CUtlVector<NetMessageCvar_t>&, bool);
-
-// Detours
-#include <CDetour/detours.h>
+KHook::Virtual<IHLTVDirector, void, IHLTVServer*>* g_HookSetHLTVServer = NULL;
+KHook::Virtual<CHLTVDemoRecorder, void>* g_HookRecordStringTables = NULL;
+KHook::Virtual<CHLTVDemoRecorder, void, ServerClass*>* g_HookRecordServerClasses = NULL;
+KHook::Virtual<ISteamGameServer, void>* g_HookSteamGameServer_LogOff = NULL;
+KHook::Virtual<IServerGameEnts, void, CCheckTransmitInfo*, const unsigned short*, int>* g_HookCheckTransmit = NULL;
 
 // Need this for demofile.h to not link tier2
 bool CUtlStreamBuffer::IsOpen() const
@@ -104,31 +94,24 @@ SMEXT_LINK(&g_Extension);
 
 void TrySendPZMsgToSourceTV(const HitAnnouncement& rMsg)
 {
-	if (g_pHLTVServer == NULL) {
+	if (g_pHLTVServer == NULL)
 		return;
-	}
 
 	int iSourceTVIndex = g_pHLTVServer->GetHLTVSlot() + 1;
-
 	CBasePlayer* pSourceTV = UTIL_PlayerByIndex(iSourceTVIndex);
-	if (pSourceTV == NULL || !pSourceTV->IsHLTV()) {
+	if (pSourceTV == NULL || !pSourceTV->IsHLTV())
 		return;
-	}
 
-	if (rMsg.m_pAttacker == NULL || rMsg.m_pVictim == NULL) {
+	if (rMsg.m_pAttacker == NULL || rMsg.m_pVictim == NULL)
 		return;
-	}
 
 	bf_write* pBf = usermsgs->StartBitBufMessage(HitAnnouncement::pzMsgId, &iSourceTVIndex, 1, USERMSG_RELIABLE);
 	if (pBf != NULL) {
 		pBf->WriteByte(rMsg.m_iEventType);
-
 		pBf->WriteShort(rMsg.m_pAttacker->GetUserID());
 		pBf->WriteShort(rMsg.m_pVictim->GetUserID());
 		pBf->WriteShort((rMsg.m_pInflictor) ? rMsg.m_pInflictor->GetUserID() : 0);
-
 		pBf->WriteShort(rMsg.m_iDamageAmount);
-
 		usermsgs->EndMessage();
 
 		/*Msg("Send usermessage \"PZDmgMsg\" to SourceTV. Msg id: %d, attacker: %d, victim: %d, inflictor: %d, damage: %d, team check: %d""\n", \
@@ -142,72 +125,61 @@ void TrySendPZMsgToSourceTV(const HitAnnouncement& rMsg)
 }
 
 // A1m`: Visual bug. usermessage "PZDmgMsg" is not sent to the SourceTV client
-DETOUR_DECL_STATIC1(Handler_ForEachTerrorPlayer__HitAnnouncement, bool, HitAnnouncement&, rMsg)
+KHook::Return<bool> Handler_ForEachTerrorPlayer__HitAnnouncement(HitAnnouncement& rMsg)
 {
-	bool bRetVal = DETOUR_STATIC_CALL(Handler_ForEachTerrorPlayer__HitAnnouncement)(rMsg);
-
+	bool bRetVal = HitAnnouncement::detour_ForEachTerrorPlayer->CallOriginal(rMsg);
 	TrySendPZMsgToSourceTV(rMsg);
-
-	return bRetVal;
+	return { KHook::Action::Supersede, bRetVal };
 }
 
 // A1m`: Visual bug. infected players abilities are not sent, so the cooldown of abilities in versus-like modes is not visible in the HUD below. 
 // This is also relevant for spectators.
-DETOUR_DECL_MEMBER1(Handler_CBaseAbility__ShouldTransmit, int, const CCheckTransmitInfo*, pInfo)
+KHook::Return<int> Handler_CBaseAbility__ShouldTransmit(void* pThis, const CCheckTransmitInfo* pInfo)
 {
-	int iRetVal = DETOUR_MEMBER_CALL(Handler_CBaseAbility__ShouldTransmit)(pInfo);
+	int iRetVal = CBaseAbility::detour_ShouldTransmit->CallOriginal(pThis, pInfo);
 
-	if (iRetVal == FL_EDICT_ALWAYS) {
-		return iRetVal;
-	}
+	if (iRetVal == FL_EDICT_ALWAYS)
+		return { KHook::Action::Supersede, iRetVal };
 
 	IGamePlayer* pPlayer = playerhelpers->GetGamePlayer(pInfo->m_pClientEnt);
-	if (pPlayer == NULL) {
-		return iRetVal;
-	}
+	if (pPlayer == NULL)
+		return { KHook::Action::Supersede, iRetVal };
 
 	IPlayerInfo* pPInfo = pPlayer->GetPlayerInfo();
-	if (pPInfo == NULL) {
-		return iRetVal;
-	}
+	if (pPInfo == NULL)
+		return { KHook::Action::Supersede, iRetVal };
 
-	/* We send to spectators and SourceTV */
-	if (pPlayer->IsSourceTV() || pPInfo->GetTeamIndex() == TEAM_SPECTATOR) {
-		return FL_EDICT_ALWAYS;
-	}
+	if (pPlayer->IsSourceTV() || pPInfo->GetTeamIndex() == TEAM_SPECTATOR)
+		return { KHook::Action::Supersede, FL_EDICT_ALWAYS };
 
-	return iRetVal;
+	return { KHook::Action::Supersede, iRetVal };
 }
 
 // bug#X: hltv clients are sending "player_full_connect" event
 // user ids of hltv clients can collide with user ids of sv
 // event "player_full_connect" fires with userid of hltv client
-DETOUR_DECL_MEMBER0(Handler_CBaseClient_SendFullConnectEvent, void)
+KHook::Return<void> Handler_CBaseClient_SendFullConnectEvent(void* pThis)
 {
-	CBaseClient* _this = reinterpret_cast<CBaseClient*>(this);
-
+	CBaseClient* _this = reinterpret_cast<CBaseClient*>(pThis);
 	IServer* pServer = _this->GetServer();
-	if (pServer != NULL && pServer->IsHLTV()) {
-		// CBaseClient::SendFullConnectEvent for HLTV client - intercept
-		return;
-	}
+	if (pServer != NULL && pServer->IsHLTV())
+		return { KHook::Action::Supersede };
 
-	DETOUR_MEMBER_CALL(Handler_CBaseClient_SendFullConnectEvent)();
+	return { KHook::Action::Ignore };
 }
 
-DETOUR_DECL_MEMBER0(Handler_CBaseServer_IsExclusiveToLobbyConnections, bool)
+KHook::Return<bool> Handler_CBaseServer_IsExclusiveToLobbyConnections(void* pThis)
 {
-	CBaseServer* _this = reinterpret_cast<CBaseServer*>(this);
-	if (_this->IsHLTV()) {
-		return false;
-	}
-
-	return DETOUR_MEMBER_CALL(Handler_CBaseServer_IsExclusiveToLobbyConnections)();
+	CBaseServer* _this = reinterpret_cast<CBaseServer*>(pThis);
+	if (_this->IsHLTV())
+		return { KHook::Action::Supersede, false };
+	return { KHook::Action::Ignore };
 }
 
-DETOUR_DECL_MEMBER1(Handler_CHLTVServer_AddNewFrame, CClientFrame*, CClientFrame*, clientFrame)
+KHook::Return<CClientFrame*> Handler_CHLTVServer_AddNewFrame(void* pThis, CClientFrame* clientFrame)
 {
-	CHLTVServer* _this = reinterpret_cast<CHLTVServer*>(this);
+	CHLTVServer* _this = reinterpret_cast<CHLTVServer*>(pThis);
+	CClientFrame* pFrame = CHLTVServer::detour_AddNewFrame->CallOriginal(pThis, clientFrame);
 
 	// bug##: hibernation causes to leak memory when adding new frames to hltv
 	// forcefully remove oldest frames
@@ -215,77 +187,249 @@ DETOUR_DECL_MEMBER1(Handler_CHLTVServer_AddNewFrame, CClientFrame*, CClientFrame
 
 	// Only keep the number of packets required to satisfy tv_delay at our tv snapshot rate
 	static ConVarRef tv_delay("tv_delay"), tv_snapshotrate("tv_snapshotrate");
-
 	int numFramesToKeep = 2 * ((1 + MAX(1.0f, tv_delay.GetFloat())) * tv_snapshotrate.GetInt());
-	if (numFramesToKeep < MAX_CLIENT_FRAMES) {
+	if (numFramesToKeep < MAX_CLIENT_FRAMES)
 		numFramesToKeep = MAX_CLIENT_FRAMES;
-	}
 
 	CClientFrameManager& frameManager = _this->GetClientFrameManager();
-
 	int nClientFrameCount = frameManager.CountClientFrames();
 	while (nClientFrameCount > numFramesToKeep) {
 		frameManager.RemoveOldestFrame();
 		--nClientFrameCount;
 	}
 
-	return pFrame;
+	return { KHook::Action::Supersede, pFrame };
 }
 
 // bug#8: ticket auth (authprotocol = 2) with hltv clients crashes server in steamclient.so on disconnect
 // malformed steamid of unauthentificated hltv client passed to CSteamGameServer012::EndAuthSession
-DETOUR_DECL_MEMBER1(Handler_CSteam3Server_NotifyClientDisconnect, void, CBaseClient*, client)
+KHook::Return<void> Handler_CSteam3Server_NotifyClientDisconnect(void* pThis, CBaseClient* client)
 {
-	if (!client->IsConnected() || client->IsFakeClient()) {
-		return;
-	}
+	if (!client->IsConnected() || client->IsFakeClient())
+		return { KHook::Action::Supersede };
+	if (!client->m_SteamID().IsValid())
+		return { KHook::Action::Supersede };
 
-	if (!client->m_SteamID().IsValid()) {
-		return;
-	}
-
-	// rww: SendUserDisconnect
-
-	DETOUR_MEMBER_CALL(Handler_CSteam3Server_NotifyClientDisconnect)(client);
+	return { KHook::Action::Ignore };
 }
 
 #if SOURCE_ENGINE == SE_LEFT4DEAD2
-DETOUR_DECL_STATIC6(Handler_SteamInternal_GameServer_Init, bool, uint32, unIP, uint16, usPort, uint16, usGamePort, uint16, usQueryPort, EServerMode, eServerMode, const char*, pchVersionString)
+KHook::Return<bool> Handler_SteamInternal_GameServer_Init(uint32 unIP, uint16 usPort, uint16 usGamePort, uint16 usQueryPort, EServerMode eServerMode, const char* pchVersionString)
 {
 	// bug##: without overriding usQueryPort parm, it uses HLTV port (if having -hltv in launch parameters), which is already bound
 	// failing SteamInternal_GameServer_Init also causes game to freeze
 	static ConVarRef sv_master_share_game_socket("sv_master_share_game_socket");
 	usQueryPort = sv_master_share_game_socket.GetBool() ? MASTERSERVERUPDATERPORT_USEGAMESOCKETSHARE : usPort - 1;
 
-	if (!DETOUR_STATIC_CALL(Handler_SteamInternal_GameServer_Init)(unIP, usPort, usGamePort, usQueryPort, eServerMode, pchVersionString)) {
-		return false;
-	}
+	bool ok = detour_SteamInternal_GameServer_Init->CallOriginal(unIP, usPort, usGamePort, usQueryPort, eServerMode, pchVersionString);
+	if (!ok)
+		return { KHook::Action::Supersede, false };
 
 	g_Extension.OnGameServer_Init();
-
-	return true;
+	return { KHook::Action::Supersede, true };
 }
 #endif
 
-DETOUR_DECL_MEMBER0(Handler_CFrameSnapshotManager_LevelChanged, void)
+KHook::Return<void> Handler_CFrameSnapshotManager_LevelChanged(void* pThis)
 {
-	CFrameSnapshotManager* _this = reinterpret_cast<CFrameSnapshotManager*>(this);
+	CFrameSnapshotManager* _this = reinterpret_cast<CFrameSnapshotManager*>(pThis);
 
 	// bug##: Underlying method CClassMemoryPool::Clear creates CUtlRBTree with insufficient iterator size (unsigned short)
 	// memory object of which fails to iterate over more than 65535 of packed entities
 	_this->m_PackedEntitiesPool().Clear();
 
 	// CFrameSnapshotManager::m_PackedEntitiesPool shouldn't have elements to free from now on
-	DETOUR_MEMBER_CALL(Handler_CFrameSnapshotManager_LevelChanged)();
+	CFrameSnapshotManager::detour_LevelChanged->CallOriginal(pThis);
+	return { KHook::Action::Supersede };
 }
-//
 
-// SMExtension
+KHook::Return<void> SMExtension::Handler_CHLTVDirector_SetHLTVServer(IHLTVDirector* /*pThis*/, IHLTVServer* pIHLTVServer)
+{
+	OnSetHLTVServer(pIHLTVServer);
+	return { KHook::Action::Ignore };
+}
+
+KHook::Return<void> SMExtension::Handler_CHLTVDemoRecorder_RecordStringTables(CHLTVDemoRecorder* pThis)
+{
+	// bug#2
+	// insufficient buffer size in CHLTVDemoRecorder::RecordStringTables, overflowing it with stringtables data (starting at CHLTVDemoRecorder::RecordStringTables)
+	// stringtables wont be saved properly, causing demo file to be corrupted
+	std::vector<byte> bigBuffer(DEMO_RECORD_BUFFER_SIZE);
+	bf_write buf(bigBuffer.data(), bigBuffer.size());
+
+	int numTables = networkStringTableContainerServer->GetNumTables();
+	buf.WriteByte(numTables);
+	for (int i = 0; i < numTables; i++) {
+		INetworkStringTable* table = networkStringTableContainerServer->GetTable(i);
+		buf.WriteString(table->GetTableName());
+
+		int numstrings = table->GetNumStrings();
+		buf.WriteWord(numstrings);
+		for (int j = 0; j < numstrings; j++) {
+			buf.WriteString(table->GetString(j));
+			int userDataSize;
+			const void* pUserData = table->GetStringUserData(j, &userDataSize);
+			if (userDataSize > 0) {
+				buf.WriteOneBit(1);
+				buf.WriteShort(userDataSize);
+				buf.WriteBytes(pUserData, userDataSize);
+			} else {
+				buf.WriteOneBit(0);
+			}
+		}
+
+		// No client side items on server
+		buf.WriteOneBit(0);
+	}
+
+	if (buf.IsOverflowed())
+		smutils->LogError(myself, "Unable to record string tables");
+
+	pThis->GetDemoFile()->WriteStringTables(&buf, pThis->GetRecordingTick());
+	return { KHook::Action::Supersede };
+}
+
+KHook::Return<void> SMExtension::Handler_CHLTVDemoRecorder_RecordServerClasses(CHLTVDemoRecorder* pThis, ServerClass* pClasses)
+{
+	std::vector<byte> bigBuffer(DEMO_RECORD_BUFFER_SIZE);
+	bf_write buf(bigBuffer.data(), bigBuffer.size());
+
+	// Send SendTable info.
+	InvokeDataTable_WriteSendTablesBuffer(pClasses, &buf);
+
+	// Send class descriptions.
+	DataTable_WriteClassInfosBuffer(pClasses, &buf);
+
+	if (buf.IsOverflowed())
+		smutils->LogError(myself, "Unable to record server classes");
+
+	pThis->GetDemoFile()->WriteNetworkDataTables(&buf, pThis->GetRecordingTick());
+	return { KHook::Action::Supersede };
+}
+
+KHook::Return<void> SMExtension::Handler_CHLTVServer_ReplyChallenge(CBaseServer* pThis, netadr_s& adr, bf_read& inmsg)
+{
+	char buffer[512];
+	bf_write msg(buffer, sizeof(buffer));
+
+	char context[256] = { 0 };
+	inmsg.ReadString(context, sizeof(context));
+
+	msg.WriteLong(CONNECTIONLESS_HEADER);
+	msg.WriteByte(S2C_CHALLENGE);
+
+	int challengeNr = pThis->GetChallengeNr(adr);
+	int authprotocol = pThis->GetChallengeType(adr);
+
+	msg.WriteLong(challengeNr);
+	msg.WriteLong(authprotocol);
+
+	msg.WriteShort(1);
+	msg.WriteLongLong(0LL);
+	msg.WriteByte(0);
+
+	msg.WriteString(context);
+
+	// bug#6: CBaseServer::ReplyChallenge called on CHLTVServer instance, on reserved server will force join client to a steam lobby
+	// joining steam lobby will force a client to connect to game server, instead of HLTV one
+	// replying with empty lobby id and no means for lobby requirement
+	msg.WriteLong(g_pNetSupport->GetEngineBuildNumber());
+	msg.WriteString("");
+	msg.WriteByte(0);
+
+	msg.WriteLongLong(0LL);
+
+	g_pNetSupport->SendPacket(NULL, NS_HLTV, adr, msg.GetData(), msg.GetNumBytesWritten());
+	return { KHook::Action::Supersede };
+}
+
+// bug##: "Connection to Steam servers lost." upon shutting hltv down
+// CHLTVServer::Shutdown is invoking CBaseServer::Shutdown which calling SteamGameServer()->LogOff()
+// without any condition on whether it was just hltv shut down
+// as long as sv instance is still active - prevent ISteamGameServer::LogOff from being invoked
+KHook::Return<void> SMExtension::Handler_ISteamGameServer_LogOff(ISteamGameServer* /*pThis*/)
+{
+	// Game server still active - intercept ISteamGameServer::LogOff
+	if (g_pGameIServer != NULL && g_pGameIServer->IsActive())
+		return { KHook::Action::Supersede };
+	return { KHook::Action::Ignore };
+}
+
+KHook::Return<bool> SMExtension::Handler_CGameServer_IsPausable(const IServer* /*pThis*/)
+{
+	static ConVarRef sv_pausable("sv_pausable");
+	return { KHook::Action::Supersede, sv_pausable.GetBool() };
+}
+
+KHook::Return<void> SMExtension::Handler_CHLTVServer_FillServerInfo(CBaseServer* /*pThis*/, SVC_ServerInfo& serverinfo)
+{
+	serverinfo.m_bIsVanilla = false;
+	return { KHook::Action::Ignore };
+}
+
+KHook::Return<void> SMExtension::Handler_CHLTVServer_FillServerInfo_HLTV(CHLTVServer* /*pThis*/, SVC_ServerInfo& serverinfo)
+{
+	serverinfo.m_bIsVanilla = false;
+	return { KHook::Action::Ignore };
+}
+
+KHook::Return<void> SMExtension::Handler_CServerGameEnts_CheckTransmit(IServerGameEnts* /*pThis*/, CCheckTransmitInfo* pInfo, const unsigned short* pEdictIndices, int nEdicts)
+{
+	// former SET_META_RESULT(MRES_OVERRIDE) — let original run, then fix up
+	// KHook post-callback would be ideal; here we call original then patch
+	// For simplicity treat as post-like: Ignore lets original run first when used as post.
+	// When used as pre with Override semantics on transmit flags we just fix after via Ignore + side effects.
+
+	IGamePlayer* pRecipientPlayer = playerhelpers->GetGamePlayer(pInfo->m_pClientEnt);
+	if (pRecipientPlayer == NULL)
+		return { KHook::Action::Ignore };
+
+	if (!pRecipientPlayer->IsSourceTV())
+		return { KHook::Action::Ignore };
+
+	int maxClients = playerhelpers->GetMaxClients();
+	for (int i = 0; i < nEdicts; i++) {
+		int iEdict = pEdictIndices[i];
+		if (iEdict > maxClients)
+			break;
+
+		// bug##: if hltvdirector follows a bot player and tv_transmitall is set to 0, world entities won't be transmitted
+		// reason being PVSInfo_t::m_vCenter never set on bots
+		edict_t* pEdict = &gpGlobals->pEdicts[iEdict];
+		IServerNetworkable* pNetworkable = pEdict->GetNetworkable();
+		if (pNetworkable != NULL) {
+			//if (hltvdirector->GetPVSEntity() != iEdict) {
+			//	continue;
+			//}
+
+			// @see CBasePlayer::ShouldTransmit
+			// HACK: force calling RecomputePVSInformation to update PVS data
+			pNetworkable->AreaNum();
+		}
+	}
+
+	return { KHook::Action::Ignore };
+}
+
+KHook::Return<IClient*> SMExtension::Handler_CHLTVServer_ConnectClient(CBaseServer* /*pThis*/, netadr_t& adr, int protocol, int challenge, int authProtocol, const char* name,
+	const char* password, const char* hashedCDkey, int cdKeyLen, CUtlVector<NetMessageCvar_t>& splitScreenClients, bool isClientLowViolence)
+{
+	if (splitScreenClients.Count() > 1) {
+		char buffer[512];
+		bf_write msg(buffer, sizeof(buffer));
+		msg.WriteLong(CONNECTIONLESS_HEADER);
+		msg.WriteByte(S2C_CONNREJECT);
+		msg.WriteString("Splitscreen is not allowed in HLTV\n");
+		g_pNetSupport->SendPacket(NULL, NS_HLTV, adr, msg.GetData(), msg.GetNumBytesWritten());
+		return { KHook::Action::Supersede, nullptr };
+	}
+	return { KHook::Action::Ignore, nullptr };
+}
+
 void SMExtension::Load()
 {
 	if ((g_pGameIServer = sdktools->GetIServer()) == NULL) {
 		smutils->LogError(myself, "Unable to retrieve sv instance pointer!");
-
 		return;
 	}
 
@@ -303,32 +447,82 @@ void SMExtension::Load()
 	CBaseServer::vcall_GetChallengeNr = bintools->CreateVCall(CBaseServer::vtblindex_GetChallengeNr, 0, 0, &params[0], &params[1], 1);
 	if (CBaseServer::vcall_GetChallengeNr == NULL) {
 		smutils->LogError(myself, "Unable to create virtual call for \"CBaseServer::GetChallengeNr\"!");
-
 		return;
 	}
 
 	CBaseServer::vcall_GetChallengeType = bintools->CreateVCall(CBaseServer::vtblindex_GetChallengeType, 0, 0, &params[0], &params[1], 1);
 	if (CBaseServer::vcall_GetChallengeType == NULL) {
 		smutils->LogError(myself, "Unable to create virtual call for \"CBaseServer::GetChallengeType\"!");
-
 		return;
 	}
 
-	CBaseAbility::detour_ShouldTransmit->EnableDetour();
-	CBaseServer::detour_IsExclusiveToLobbyConnections->EnableDetour();
-	CSteam3Server::detour_NotifyClientDisconnect->EnableDetour();
-	CHLTVServer::detour_AddNewFrame->EnableDetour();
-	CFrameSnapshotManager::detour_LevelChanged->EnableDetour();
-	HitAnnouncement::detour_ForEachTerrorPlayer->EnableDetour();
 #if SOURCE_ENGINE == SE_LEFT4DEAD2
-	detour_SteamInternal_GameServer_Init->EnableDetour();
-	CBaseClient::detour_SendFullConnectEvent->EnableDetour();
+	detour_SteamInternal_GameServer_Init = new KHook::Function<bool, uint32, uint16, uint16, uint16, EServerMode, const char*>(
+		reinterpret_cast<bool (*)(uint32, uint16, uint16, uint16, EServerMode, const char*)>(pfn_SteamInternal_GameServer_Init),
+		&Handler_SteamInternal_GameServer_Init,
+		nullptr
+	);
+
+	CBaseClient::detour_SendFullConnectEvent = new KHook::Function<void, void*>(
+		reinterpret_cast<void (*)(void*)>(CBaseClient::pfn_SendFullConnectEvent),
+		&Handler_CBaseClient_SendFullConnectEvent,
+		nullptr
+	);
 #endif
 
+	CBaseServer::detour_IsExclusiveToLobbyConnections = new KHook::Function<bool, void*>(
+		reinterpret_cast<bool (*)(void*)>(CBaseServer::pfn_IsExclusiveToLobbyConnections),
+		&Handler_CBaseServer_IsExclusiveToLobbyConnections,
+		nullptr
+	);
+
+	CSteam3Server::detour_NotifyClientDisconnect = new KHook::Function<void, void*, CBaseClient*>(
+		reinterpret_cast<void (*)(void*, CBaseClient*)>(CSteam3Server::pfn_NotifyClientDisconnect),
+		&Handler_CSteam3Server_NotifyClientDisconnect,
+		nullptr
+	);
+
+	CHLTVServer::detour_AddNewFrame = new KHook::Function<CClientFrame*, void*, CClientFrame*>(
+		reinterpret_cast<CClientFrame* (*)(void*, CClientFrame*)>(CHLTVServer::pfn_AddNewFrame),
+		&Handler_CHLTVServer_AddNewFrame,
+		nullptr
+	);
+
+	CFrameSnapshotManager::detour_LevelChanged = new KHook::Function<void, void*>(
+		reinterpret_cast<void (*)(void*)>(CFrameSnapshotManager::pfn_LevelChanged),
+		&Handler_CFrameSnapshotManager_LevelChanged,
+		nullptr
+	);
+
+	CBaseAbility::detour_ShouldTransmit = new KHook::Function<int, void*, const CCheckTransmitInfo*>(
+		reinterpret_cast<int (*)(void*, const CCheckTransmitInfo*)>(CBaseAbility::pfn_ShouldTransmit),
+		&Handler_CBaseAbility__ShouldTransmit,
+		nullptr
+	);
+
+	HitAnnouncement::detour_ForEachTerrorPlayer = new KHook::Function<bool, HitAnnouncement&>(
+		reinterpret_cast<bool (*)(HitAnnouncement&)>(HitAnnouncement::pfn_ForEachTerrorPlayer),
+		&Handler_ForEachTerrorPlayer__HitAnnouncement,
+		nullptr
+	);
+
 #if SOURCE_ENGINE == SE_LEFT4DEAD
-	CGameServer::shookid_IsPausable = SH_ADD_HOOK(IServer, IsPausable, g_pGameIServer, SH_MEMBER(this, &SMExtension::Handler_CGameServer_IsPausable), true);
+	CGameServer::hook_IsPausable = new KHook::Virtual<IServer, bool>(
+		&IServer::IsPausable,
+		this,
+		&SMExtension::Handler_CGameServer_IsPausable,
+		nullptr
+	);
+	CGameServer::hook_IsPausable->Add(g_pGameIServer);
 #endif
-	SH_ADD_HOOK(IHLTVDirector, SetHLTVServer, hltvdirector, SH_MEMBER(this, &SMExtension::Handler_CHLTVDirector_SetHLTVServer), true);
+
+	g_HookSetHLTVServer = new KHook::Virtual<IHLTVDirector, void, IHLTVServer*>(
+		&IHLTVDirector::SetHLTVServer,
+		this,
+		nullptr, // pre
+		&SMExtension::Handler_CHLTVDirector_SetHLTVServer // post
+	);
+	g_HookSetHLTVServer->Add(hltvdirector);
 
 	OnSetHLTVServer(hltvdirector->GetHLTVServer());
 	OnGameServer_Init();
@@ -344,63 +538,50 @@ void SMExtension::Load()
 
 void SMExtension::Unload()
 {
-	if (CBaseAbility::detour_ShouldTransmit) {
-		CBaseAbility::detour_ShouldTransmit->Destroy();
-		CBaseAbility::detour_ShouldTransmit = NULL;
-	}
+	delete CBaseAbility::detour_ShouldTransmit;
+	CBaseAbility::detour_ShouldTransmit = NULL;
 
 	if (CBaseServer::vcall_GetChallengeNr != NULL) {
 		CBaseServer::vcall_GetChallengeNr->Destroy();
 		CBaseServer::vcall_GetChallengeNr = NULL;
 	}
-
 	if (CBaseServer::vcall_GetChallengeType != NULL) {
 		CBaseServer::vcall_GetChallengeType->Destroy();
 		CBaseServer::vcall_GetChallengeType = NULL;
 	}
 
-	if (CBaseServer::detour_IsExclusiveToLobbyConnections != NULL) {
-		CBaseServer::detour_IsExclusiveToLobbyConnections->Destroy();
-		CBaseServer::detour_IsExclusiveToLobbyConnections = NULL;
-	}
+	delete CBaseServer::detour_IsExclusiveToLobbyConnections;
+	CBaseServer::detour_IsExclusiveToLobbyConnections = NULL;
 
-	if (CHLTVServer::detour_AddNewFrame != NULL) {
-		CHLTVServer::detour_AddNewFrame->Destroy();
-		CHLTVServer::detour_AddNewFrame = NULL;
-	}
+	delete CHLTVServer::detour_AddNewFrame;
+	CHLTVServer::detour_AddNewFrame = NULL;
 
-	if (CBaseClient::detour_SendFullConnectEvent != NULL) {
-		CBaseClient::detour_SendFullConnectEvent->Destroy();
-		CBaseClient::detour_SendFullConnectEvent = NULL;
-	}
+	delete CBaseClient::detour_SendFullConnectEvent;
+	CBaseClient::detour_SendFullConnectEvent = NULL;
 
-	if (detour_SteamInternal_GameServer_Init != NULL) {
-		detour_SteamInternal_GameServer_Init->Destroy();
-		detour_SteamInternal_GameServer_Init = NULL;
-	}
+	delete detour_SteamInternal_GameServer_Init;
+	detour_SteamInternal_GameServer_Init = NULL;
 
-	if (CSteam3Server::detour_NotifyClientDisconnect != NULL) {
-		CSteam3Server::detour_NotifyClientDisconnect->Destroy();
-		CSteam3Server::detour_NotifyClientDisconnect = NULL;
-	}
+	delete CSteam3Server::detour_NotifyClientDisconnect;
+	CSteam3Server::detour_NotifyClientDisconnect = NULL;
 
-	if (CFrameSnapshotManager::detour_LevelChanged != NULL) {
-		CFrameSnapshotManager::detour_LevelChanged->Destroy();
-		CFrameSnapshotManager::detour_LevelChanged = NULL;
-	}
+	delete CFrameSnapshotManager::detour_LevelChanged;
+	CFrameSnapshotManager::detour_LevelChanged = NULL;
 
-	if (HitAnnouncement::detour_ForEachTerrorPlayer != NULL) {
-		HitAnnouncement::detour_ForEachTerrorPlayer->Destroy();
-		HitAnnouncement::detour_ForEachTerrorPlayer = NULL;
-	}
+	delete HitAnnouncement::detour_ForEachTerrorPlayer;
+	HitAnnouncement::detour_ForEachTerrorPlayer = NULL;
 
 	OnGameServer_Shutdown();
-
-	SH_REMOVE_HOOK(IHLTVDirector, SetHLTVServer, hltvdirector, SH_MEMBER(this, &SMExtension::Handler_CHLTVDirector_SetHLTVServer), true);
 	OnSetHLTVServer(NULL);
 
-	SH_REMOVE_HOOK_ID(CGameServer::shookid_IsPausable);
-	CGameServer::shookid_IsPausable = 0;
+	if (g_HookSetHLTVServer) {
+		g_HookSetHLTVServer->Remove(hltvdirector);
+		delete g_HookSetHLTVServer;
+		g_HookSetHLTVServer = NULL;
+	}
+
+	delete CGameServer::hook_IsPausable;
+	CGameServer::hook_IsPausable = NULL;
 }
 
 bool SMExtension::SetupFromGameConfig(IGameConfig* gc, char* error, int maxlength)
@@ -430,7 +611,6 @@ bool SMExtension::SetupFromGameConfig(IGameConfig* gc, char* error, int maxlengt
 	for (auto&& el : s_offsets) {
 		if (!gc->GetOffset(el.key, &el.offset)) {
 			ke::SafeSprintf(error, maxlength, "Unable to get offset for \"%s\" from game config (file: \"" GAMEDATA_FILE ".txt\")", el.key);
-
 			return false;
 		}
 	}
@@ -456,13 +636,10 @@ bool SMExtension::SetupFromGameConfig(IGameConfig* gc, char* error, int maxlengt
 	for (auto&& el : s_sigs) {
 		if (!gc->GetMemSig(el.key, &el.address)) {
 			ke::SafeSprintf(error, maxlength, "Unable to find signature for \"%s\" from game config (file: \"" GAMEDATA_FILE ".txt\")", el.key);
-
 			return false;
 		}
-
 		if (el.address == NULL) {
 			ke::SafeSprintf(error, maxlength, "Sigscan for \"%s\" failed (game config file: \"" GAMEDATA_FILE ".txt\")", el.key);
-
 			return false;
 		}
 	}
@@ -484,19 +661,15 @@ bool SMExtension::SetupFromGameConfig(IGameConfig* gc, char* error, int maxlengt
 	for (auto&& el : s_addresses) {
 		if (!gc->GetAddress(el.key, &el.address)) {
 			ke::SafeSprintf(error, maxlength, "Failed to get address of function \"%s\" from game config (file: \"" GAMEDATA_FILE ".txt\")", el.key);
-
 			return false;
 		}
-
 		if (el.address == NULL) {
 			ke::SafeSprintf(error, maxlength, "Unable to resolve address \"%s\" (game config file: \"" GAMEDATA_FILE ".txt\")", el.key);
-
 			return false;
 		}
 	}
 
 #if defined _WIN32
-	// NOTE: needs ForEachTerrorPlayer<HitAnnouncement> address set up
 	HitAnnouncement::SetupFromRelativeAddress(relative);
 #endif
 
@@ -513,7 +686,6 @@ bool SMExtension::SetupFromSteamAPILibrary(char* error, int maxlength)
 	ke::RefPtr<ke::SharedLib> steam_api = ke::SharedLib::Open(path, libError, sizeof(libError));
 	if (!steam_api) {
 		ke::SafeSprintf(error, maxlength, "Unable to load library \"%s\" (reason: \"%s\")", path, libError);
-
 		return false;
 	}
 
@@ -531,78 +703,10 @@ bool SMExtension::SetupFromSteamAPILibrary(char* error, int maxlength)
 		el.address = steam_api->lookup(el.symbol);
 		if (el.address == NULL) {
 			ke::SafeSprintf(error, maxlength, "Unable to find symbol \"%s\" (file: \"%s\")", el.symbol, path);
-
 			return false;
 		}
 	}
 #endif
-
-	return true;
-}
-
-bool SMExtension::CreateDetours(char* error, size_t maxlength)
-{
-	// Game config is never used by detour class to handle errors ourselves
-	CDetourManager::Init(smutils->GetScriptingEngine(), NULL);
-
-#if SOURCE_ENGINE == SE_LEFT4DEAD2
-	detour_SteamInternal_GameServer_Init = DETOUR_CREATE_STATIC(Handler_SteamInternal_GameServer_Init, pfn_SteamInternal_GameServer_Init);
-	if (detour_SteamInternal_GameServer_Init == NULL) {
-		ke::SafeStrcpy(error, maxlength, "Unable to create a detour for \"SteamInternal_GameServer_Init\"");
-
-		return false;
-	}
-
-	CBaseClient::detour_SendFullConnectEvent = DETOUR_CREATE_MEMBER(Handler_CBaseClient_SendFullConnectEvent, CBaseClient::pfn_SendFullConnectEvent);
-	if (CBaseClient::detour_SendFullConnectEvent == NULL) {
-		ke::SafeStrcpy(error, maxlength, "Unable to create a detour for \"CBaseClient::SendFullConnectEvent\"");
-
-		return false;
-	}
-#endif
-
-	CBaseServer::detour_IsExclusiveToLobbyConnections = DETOUR_CREATE_MEMBER(Handler_CBaseServer_IsExclusiveToLobbyConnections, CBaseServer::pfn_IsExclusiveToLobbyConnections);
-	if (CBaseServer::detour_IsExclusiveToLobbyConnections == NULL) {
-		ke::SafeStrcpy(error, maxlength, "Unable to create a detour for \"CBaseServer::IsExclusiveToLobbyConnections\"");
-
-		return false;
-	}
-
-	CSteam3Server::detour_NotifyClientDisconnect = DETOUR_CREATE_MEMBER(Handler_CSteam3Server_NotifyClientDisconnect, CSteam3Server::pfn_NotifyClientDisconnect);
-	if (CSteam3Server::detour_NotifyClientDisconnect == NULL) {
-		ke::SafeStrcpy(error, maxlength, "Unable to create a detour for \"CSteam3Server::NotifyClientDisconnect\"");
-
-		return false;
-	}
-
-	CHLTVServer::detour_AddNewFrame = DETOUR_CREATE_MEMBER(Handler_CHLTVServer_AddNewFrame, CHLTVServer::pfn_AddNewFrame);
-	if (CHLTVServer::detour_AddNewFrame == NULL) {
-		ke::SafeStrcpy(error, maxlength, "Unable to create a detour for \"CHLTVServer::AddNewFrame\"");
-
-		return false;
-	}
-
-	CFrameSnapshotManager::detour_LevelChanged = DETOUR_CREATE_MEMBER(Handler_CFrameSnapshotManager_LevelChanged, CFrameSnapshotManager::pfn_LevelChanged);
-	if (CFrameSnapshotManager::detour_LevelChanged == NULL) {
-		ke::SafeStrcpy(error, maxlength, "Unable to create a detour for \"CFrameSnapshotManager::LevelChanged\"");
-
-		return false;
-	}
-
-	CBaseAbility::detour_ShouldTransmit = DETOUR_CREATE_MEMBER(Handler_CBaseAbility__ShouldTransmit, CBaseAbility::pfn_ShouldTransmit);
-	if (CBaseAbility::detour_ShouldTransmit == NULL) {
-		ke::SafeStrcpy(error, maxlength, "Unable to create a detour for \"CBaseAbility::ShouldTransmit\"");
-
-		return false;
-	}
-
-	HitAnnouncement::detour_ForEachTerrorPlayer = DETOUR_CREATE_STATIC(Handler_ForEachTerrorPlayer__HitAnnouncement, HitAnnouncement::pfn_ForEachTerrorPlayer);
-	if (HitAnnouncement::detour_ForEachTerrorPlayer == NULL) {
-		ke::SafeStrcpy(error, maxlength, "Unable to create a detour for \"ForEachTerrorPlayer<HitAnnouncement>\"");
-
-		return false;
-	}
-
 	return true;
 }
 
@@ -612,81 +716,141 @@ void SMExtension::OnGameServer_Init()
 
 #if SOURCE_ENGINE == SE_LEFT4DEAD2
 	HSteamPipe hSteamPipe = InvokeGetHSteamPipe();
-	if (hSteamPipe == 0) {
+	if (hSteamPipe == 0)
 		return;
-	}
 
-	ISteamClient* pSteamClient = static_cast<ISteamClient*>(InvokeCreateInterface("SteamClient020")); // STEAMCLIENT_INTERFACE_VERSION
-	if (pSteamClient == NULL) {
+	ISteamClient* pSteamClient = static_cast<ISteamClient*>(InvokeCreateInterface(STEAMCLIENT_INTERFACE_VERSION));
+	if (pSteamClient == NULL)
 		return;
-	}
 
 	HSteamUser hSteamUser = InvokeGetHSteamUser();
 	ISteamGameServer* pSteamGameServer = pSteamClient->GetISteamGameServer(hSteamUser, hSteamPipe, STEAMGAMESERVER_INTERFACE_VERSION);
-	if (pSteamGameServer == NULL) {
+	if (pSteamGameServer == NULL)
 		return;
-	}
 
-	shookid_SteamGameServer_LogOff = SH_ADD_HOOK(ISteamGameServer, LogOff, pSteamGameServer, SH_MEMBER(this, &SMExtension::Handler_ISteamGameServer_LogOff), false);
+	g_HookSteamGameServer_LogOff = new KHook::Virtual<ISteamGameServer, void>(
+		&ISteamGameServer::LogOff,
+		this,
+		&SMExtension::Handler_ISteamGameServer_LogOff,
+		nullptr
+	);
+	g_HookSteamGameServer_LogOff->Add(pSteamGameServer);
 #endif
 }
 
 void SMExtension::OnGameServer_Shutdown()
 {
-	SH_REMOVE_HOOK_ID(shookid_SteamGameServer_LogOff);
-	shookid_SteamGameServer_LogOff = 0;
+	if (g_HookSteamGameServer_LogOff) {
+		delete g_HookSteamGameServer_LogOff;
+		g_HookSteamGameServer_LogOff = NULL;
+	}
 }
 
 void SMExtension::OnSetHLTVServer(IHLTVServer* pIHLTVServer)
 {
-	SH_REMOVE_HOOK_ID(CHLTVServer::shookid_ReplyChallenge);
-	CHLTVServer::shookid_ReplyChallenge = 0;
-
-	SH_REMOVE_HOOK_ID(CHLTVServer::shookid_hltv_FillServerInfo);
-	CHLTVServer::shookid_hltv_FillServerInfo = 0;
-
-	SH_REMOVE_HOOK_ID(CHLTVServer::shookid_FillServerInfo);
-	CHLTVServer::shookid_FillServerInfo = 0;
-
-	SH_REMOVE_HOOK_ID(CHLTVServer::shookid_ConnectClient);
-	CHLTVServer::shookid_ConnectClient = 0;
-
-	SH_REMOVE_HOOK_ID(shookid_CHLTVDemoRecorder_RecordStringTables);
-	shookid_CHLTVDemoRecorder_RecordStringTables = 0;
-
-	SH_REMOVE_HOOK_ID(shookid_CHLTVDemoRecorder_RecordServerClasses);
-	shookid_CHLTVDemoRecorder_RecordServerClasses = 0;
-
-	SH_REMOVE_HOOK_ID(shookid_CServerGameEnts_CheckTransmit);
-	shookid_CServerGameEnts_CheckTransmit = 0;
+	// Remove previous
+	if (CHLTVServer::hook_ReplyChallenge) {
+		delete CHLTVServer::hook_ReplyChallenge;
+		CHLTVServer::hook_ReplyChallenge = NULL;
+	}
+	if (CHLTVServer::hook_FillServerInfo) {
+		delete CHLTVServer::hook_FillServerInfo;
+		CHLTVServer::hook_FillServerInfo = NULL;
+	}
+	if (CHLTVServer::hook_hltv_FillServerInfo) {
+		delete CHLTVServer::hook_hltv_FillServerInfo;
+		CHLTVServer::hook_hltv_FillServerInfo = NULL;
+	}
+	if (CHLTVServer::hook_ConnectClient) {
+		delete CHLTVServer::hook_ConnectClient;
+		CHLTVServer::hook_ConnectClient = NULL;
+	}
+	if (g_HookRecordStringTables) {
+		delete g_HookRecordStringTables;
+		g_HookRecordStringTables = NULL;
+	}
+	if (g_HookRecordServerClasses) {
+		delete g_HookRecordServerClasses;
+		g_HookRecordServerClasses = NULL;
+	}
+	if (g_HookCheckTransmit) {
+		delete g_HookCheckTransmit;
+		g_HookCheckTransmit = NULL;
+	}
 
 	g_pHLTVServer = pIHLTVServer;
-
-	if (pIHLTVServer == NULL) {
+	if (pIHLTVServer == NULL)
 		return;
-	}
 
 	CBaseServer* pServer = CBaseServer::FromIHLTVServer(pIHLTVServer);
-	if (pServer == NULL) {
+	if (pServer == NULL)
 		return;
-	}
 
 	CHLTVServer* pHLTVServer = CHLTVServer::FromBaseServer(pServer);
 
-	CHLTVServer::shookid_ReplyChallenge = SH_ADD_MANUALHOOK(CBaseServer_ReplyChallenge, pServer, SH_MEMBER(this, &SMExtension::Handler_CHLTVServer_ReplyChallenge), false);
+	// Manual hooks by vtable index
+	CHLTVServer::hook_ReplyChallenge = new KHook::Virtual<CBaseServer, void, netadr_s&, bf_read&>(
+		(std::uint32_t)CBaseServer::vtblindex_ReplyChallenge,
+		this,
+		&SMExtension::Handler_CHLTVServer_ReplyChallenge,
+		nullptr
+	);
+	CHLTVServer::hook_ReplyChallenge->Add(pServer);
+
 #if SOURCE_ENGINE == SE_LEFT4DEAD2
-	CHLTVServer::shookid_FillServerInfo = SH_ADD_MANUALHOOK(CBaseServer_FillServerInfo, pServer, SH_MEMBER(this, &SMExtension::Handler_CHLTVServer_FillServerInfo), true);
+	CHLTVServer::hook_FillServerInfo = new KHook::Virtual<CBaseServer, void, SVC_ServerInfo&>(
+		(std::uint32_t)CBaseServer::vtblindex_FillServerInfo,
+		this,
+		nullptr,
+		&SMExtension::Handler_CHLTVServer_FillServerInfo // post
+	);
+	CHLTVServer::hook_FillServerInfo->Add(pServer);
+
 #if !defined _WIN32
-	CHLTVServer::shookid_hltv_FillServerInfo = SH_ADD_MANUALHOOK(CHLTVServer_FillServerInfo, pHLTVServer, SH_MEMBER(this, &SMExtension::Handler_CHLTVServer_FillServerInfo), true);
+	CHLTVServer::hook_hltv_FillServerInfo = new KHook::Virtual<CHLTVServer, void, SVC_ServerInfo&>(
+		(std::uint32_t)CHLTVServer::vtblindex_FillServerInfo,
+		this,
+		nullptr,
+		&SMExtension::Handler_CHLTVServer_FillServerInfo_HLTV
+	);
+	CHLTVServer::hook_hltv_FillServerInfo->Add(pHLTVServer);
 #endif
 #endif
-	CHLTVServer::shookid_ConnectClient = SH_ADD_MANUALHOOK(CHLTVServer_ConnectClient, pServer, SH_MEMBER(this, &SMExtension::Handler_CHLTVServer_ConnectClient), false);
+
+	CHLTVServer::hook_ConnectClient = new KHook::Virtual<CBaseServer, IClient*, netadr_t&, int, int, int, const char*,
+		const char*, const char*, int, CUtlVector<NetMessageCvar_t>&, bool>(
+		(std::uint32_t)CBaseServer::vtblindex_ConnectClient,
+		this,
+		&SMExtension::Handler_CHLTVServer_ConnectClient,
+		nullptr
+	);
+	CHLTVServer::hook_ConnectClient->Add(pServer);
 
 	CHLTVDemoRecorder& demoRecorder = pHLTVServer->m_DemoRecorder();
-	shookid_CHLTVDemoRecorder_RecordStringTables = SH_ADD_HOOK(CHLTVDemoRecorder, RecordStringTables, &demoRecorder, SH_MEMBER(this, &SMExtension::Handler_CHLTVDemoRecorder_RecordStringTables), false);
-	shookid_CHLTVDemoRecorder_RecordServerClasses = SH_ADD_HOOK(CHLTVDemoRecorder, RecordServerClasses, &demoRecorder, SH_MEMBER(this, &SMExtension::Handler_CHLTVDemoRecorder_RecordServerClasses), false);
 
-	shookid_CServerGameEnts_CheckTransmit = SH_ADD_HOOK(IServerGameEnts, CheckTransmit, gameents, SH_MEMBER(this, &SMExtension::Handler_CServerGameEnts_CheckTransmit), true);
+	g_HookRecordStringTables = new KHook::Virtual<CHLTVDemoRecorder, void>(
+		&CHLTVDemoRecorder::RecordStringTables,
+		this,
+		&SMExtension::Handler_CHLTVDemoRecorder_RecordStringTables,
+		nullptr
+	);
+	g_HookRecordStringTables->Add(&demoRecorder);
+
+	g_HookRecordServerClasses = new KHook::Virtual<CHLTVDemoRecorder, void, ServerClass*>(
+		&CHLTVDemoRecorder::RecordServerClasses,
+		this,
+		&SMExtension::Handler_CHLTVDemoRecorder_RecordServerClasses,
+		nullptr
+	);
+	g_HookRecordServerClasses->Add(&demoRecorder);
+
+	g_HookCheckTransmit = new KHook::Virtual<IServerGameEnts, void, CCheckTransmitInfo*, const unsigned short*, int>(
+		&IServerGameEnts::CheckTransmit,
+		this,
+		nullptr,
+		&SMExtension::Handler_CServerGameEnts_CheckTransmit // post
+	);
+	g_HookCheckTransmit->Add(gameents);
 
 	CNetworkStringTable* pStringTableGameRules = static_cast<CNetworkStringTable*>(pServer->m_StringTables()->FindTable("GameRulesCreation"));
 	if (pStringTableGameRules != NULL) {
@@ -709,252 +873,38 @@ void SMExtension::OnSetHLTVServer(IHLTVServer* pIHLTVServer)
 	pServer->stringTableCRC() = CBaseServer::FromIServer(g_pGameIServer)->stringTableCRC();
 }
 
-void SMExtension::Handler_CHLTVDirector_SetHLTVServer(IHLTVServer* pIHLTVServer)
-{
-	OnSetHLTVServer(pIHLTVServer);
-}
-
-void SMExtension::Handler_CHLTVDemoRecorder_RecordStringTables()
-{
-	CHLTVDemoRecorder* _this = META_IFACEPTR(CHLTVDemoRecorder);
-
-	// bug#2
-	// insufficient buffer size in CHLTVDemoRecorder::RecordStringTables, overflowing it with stringtables data (starting at CHLTVDemoRecorder::RecordStringTables)
-	// stringtables wont be saved properly, causing demo file to be corrupted
-	std::vector<byte> bigBuffer(DEMO_RECORD_BUFFER_SIZE);
-	bf_write buf(bigBuffer.data(), bigBuffer.size());
-
-	int numTables = networkStringTableContainerServer->GetNumTables();
-	buf.WriteByte(numTables);
-	for (int i = 0; i < numTables; i++) {
-		INetworkStringTable* table = networkStringTableContainerServer->GetTable(i);
-		buf.WriteString(table->GetTableName());
-
-		int numstrings = table->GetNumStrings();
-		buf.WriteWord(numstrings);
-		for (int j = 0; j < numstrings; j++) {
-			buf.WriteString(table->GetString(j));
-			int userDataSize;
-			const void* pUserData = table->GetStringUserData(j, &userDataSize);
-			if (userDataSize > 0) {
-				buf.WriteOneBit(1);
-				buf.WriteShort(userDataSize);
-				buf.WriteBytes(pUserData, userDataSize);
-			}
-			else {
-				buf.WriteOneBit(0);
-			}
-		}
-
-		// No client side items on server
-		buf.WriteOneBit(0);
-	}
-
-	if (buf.IsOverflowed()) {
-		smutils->LogError(myself, "Unable to record string tables");
-	}
-
-	_this->GetDemoFile()->WriteStringTables(&buf, _this->GetRecordingTick());
-
-	RETURN_META(MRES_SUPERCEDE);
-}
-
-void SMExtension::Handler_CHLTVDemoRecorder_RecordServerClasses(ServerClass* pClasses)
-{
-	CHLTVDemoRecorder* _this = META_IFACEPTR(CHLTVDemoRecorder);
-
-	std::vector<byte> bigBuffer(DEMO_RECORD_BUFFER_SIZE);
-	bf_write buf(bigBuffer.data(), bigBuffer.size());
-
-	// Send SendTable info.
-	InvokeDataTable_WriteSendTablesBuffer(pClasses, &buf);
-
-	// Send class descriptions.
-	DataTable_WriteClassInfosBuffer(pClasses, &buf);
-
-	if (buf.IsOverflowed()) {
-		smutils->LogError(myself, "Unable to record server classes");
-	}
-
-	_this->GetDemoFile()->WriteNetworkDataTables(&buf, _this->GetRecordingTick());
-
-	RETURN_META(MRES_SUPERCEDE);
-}
-
-void SMExtension::Handler_CHLTVServer_ReplyChallenge(netadr_s& adr, bf_read& inmsg)
-{
-	// rww: check if hooks right instance
-	CBaseServer* _this = META_IFACEPTR(CBaseServer);
-
-	char buffer[512];
-	bf_write msg(buffer, sizeof(buffer));
-
-	char context[256] = { 0 };
-	inmsg.ReadString(context, sizeof(context));
-
-	msg.WriteLong(CONNECTIONLESS_HEADER);
-	msg.WriteByte(S2C_CHALLENGE);
-
-	int challengeNr = _this->GetChallengeNr(adr);
-	int authprotocol = _this->GetChallengeType(adr);
-
-	msg.WriteLong(challengeNr);
-	msg.WriteLong(authprotocol);
-
-	msg.WriteShort(1);
-	msg.WriteLongLong(0LL);
-	msg.WriteByte(0);
-
-	msg.WriteString(context);
-
-	// bug#6: CBaseServer::ReplyChallenge called on CHLTVServer instance, on reserved server will force join client to a steam lobby
-	// joining steam lobby will force a client to connect to game server, instead of HLTV one
-	// replying with empty lobby id and no means for lobby requirement
-	msg.WriteLong(g_pNetSupport->GetEngineBuildNumber());
-	msg.WriteString("");
-	msg.WriteByte(0);
-
-	msg.WriteLongLong(0LL);
-
-	g_pNetSupport->SendPacket(NULL, NS_HLTV, adr, msg.GetData(), msg.GetNumBytesWritten());
-
-	RETURN_META(MRES_SUPERCEDE);
-}
-
-// bug##: "Connection to Steam servers lost." upon shutting hltv down
-// CHLTVServer::Shutdown is invoking CBaseServer::Shutdown which calling SteamGameServer()->LogOff()
-// without any condition on whether it was just hltv shut down
-// as long as sv instance is still active - prevent ISteamGameServer::LogOff from being invoked
-void SMExtension::Handler_ISteamGameServer_LogOff()
-{
-	if (g_pGameIServer != NULL && g_pGameIServer->IsActive()) {
-		// Game server still active - intercept ISteamGameServer::LogOff
-		RETURN_META(MRES_SUPERCEDE);
-	}
-
-	RETURN_META(MRES_IGNORED);
-}
-
-bool SMExtension::Handler_CGameServer_IsPausable() const
-{
-	static ConVarRef sv_pausable("sv_pausable");
-	RETURN_META_VALUE(MRES_SUPERCEDE, sv_pausable.GetBool());
-}
-
-void SMExtension::Handler_CHLTVServer_FillServerInfo(SVC_ServerInfo& serverinfo)
-{
-	// feature request #12 - allow addons in demos
-	serverinfo.m_bIsVanilla = false;
-}
-
-void SMExtension::Handler_CServerGameEnts_CheckTransmit(CCheckTransmitInfo* pInfo, const unsigned short* pEdictIndices, int nEdicts)
-{
-	SET_META_RESULT(MRES_OVERRIDE);
-
-	IGamePlayer* pRecipientPlayer = playerhelpers->GetGamePlayer(pInfo->m_pClientEnt);
-	if (pRecipientPlayer == NULL) {
-		return;
-	}
-
-	if (!pRecipientPlayer->IsSourceTV()) {
-		return;
-	}
-
-	int maxClients = playerhelpers->GetMaxClients();
-
-	for (int i = 0; i < nEdicts; i++) {
-		int iEdict = pEdictIndices[i];
-		if (iEdict > maxClients) {
-			break;
-		}
-
-		// bug##: if hltvdirector follows a bot player and tv_transmitall is set to 0, world entities won't be transmitted
-		// reason being PVSInfo_t::m_vCenter never set on bots
-		edict_t* pEdict = &gpGlobals->pEdicts[iEdict];
-
-		IServerNetworkable* pNetworkable = pEdict->GetNetworkable();
-		if (pNetworkable != NULL) {
-			//if (hltvdirector->GetPVSEntity() != iEdict) {
-			//	continue;
-			//}
-
-			// @see CBasePlayer::ShouldTransmit
-			// HACK: force calling RecomputePVSInformation to update PVS data
-			pNetworkable->AreaNum();
-		}
-	}
-}
-
-IClient* SMExtension::Handler_CHLTVServer_ConnectClient(netadr_t& adr, int protocol, int challenge, int authProtocol, const char* name,
-	const char* password, const char* hashedCDkey, int cdKeyLen, CUtlVector<NetMessageCvar_t>& splitScreenClients, bool isClientLowViolence)
-{
-	if (splitScreenClients.Count() > 1)
-	{
-		char buffer[512];
-		bf_write msg(buffer, sizeof(buffer));
-
-		msg.WriteLong(CONNECTIONLESS_HEADER);
-		msg.WriteByte(S2C_CONNREJECT);
-		msg.WriteString("Splitscreen is not allowed in HLTV\n");
-
-		g_pNetSupport->SendPacket(NULL, NS_HLTV, adr, msg.GetData(), msg.GetNumBytesWritten());
-
-		RETURN_META_VALUE(MRES_SUPERCEDE, nullptr);
-	}
-
-	RETURN_META_VALUE(MRES_IGNORED, nullptr);
-}
-
 bool SMExtension::SDK_OnLoad(char* error, size_t maxlength, bool late)
 {
 	HitAnnouncement::pzMsgId = usermsgs->GetMessageIndex("PZDmgMsg");
 	if (HitAnnouncement::pzMsgId == -1) {
 		ke::SafeStrcpy(error, maxlength, "Unable to find usermessage \"PZDmgMsg\"!");
-
 		return false;
 	}
 
 	sm_sendprop_info_t info;
 	if (!gamehelpers->FindSendPropInfo("CBasePlayer", "m_fFlags", &info)) {
 		ke::SafeStrcpy(error, maxlength, "Unable to find SendProp \"CBasePlayer::m_fFlags\"");
-
 		return false;
 	}
-
 	CBasePlayer::sendprop_m_fFlags = info.actual_offset;
 
 	IGameConfig* gc = NULL;
 	if (!gameconfs->LoadGameConfigFile(GAMEDATA_FILE, &gc, error, maxlength)) {
 		ke::SafeStrcpy(error, maxlength, "Unable to load a gamedata file \"" GAMEDATA_FILE ".txt\"");
-
 		return false;
 	}
 
 	if (!SetupFromGameConfig(gc, error, maxlength)) {
 		gameconfs->CloseGameConfigFile(gc);
-
 		return false;
 	}
-
 	gameconfs->CloseGameConfigFile(gc);
 
-	SH_MANUALHOOK_RECONFIGURE(CBaseServer_ReplyChallenge, CBaseServer::vtblindex_ReplyChallenge, 0, 0);
-	SH_MANUALHOOK_RECONFIGURE(CBaseServer_FillServerInfo, CBaseServer::vtblindex_FillServerInfo, 0, 0);
-	SH_MANUALHOOK_RECONFIGURE(CHLTVServer_FillServerInfo, CHLTVServer::vtblindex_FillServerInfo, 0, 0);
-	SH_MANUALHOOK_RECONFIGURE(CHLTVServer_ConnectClient, CBaseServer::vtblindex_ConnectClient, 0, 0);
-
-	// Retrieve addresses from steam_api shared library
-	if (!SetupFromSteamAPILibrary(error, maxlength)) {
+	if (!SetupFromSteamAPILibrary(error, maxlength))
 		return false;
-	}
-
-	if (!CreateDetours(error, maxlength)) {
-		return false;
-	}
 
 	sharesys->AddDependency(myself, "bintools.ext", true, true);
 	sharesys->AddDependency(myself, "sdktools.ext", true, true);
-
 	return true;
 }
 
@@ -967,54 +917,42 @@ void SMExtension::SDK_OnAllLoaded()
 {
 	SM_GET_LATE_IFACE(SDKTOOLS, sdktools);
 	SM_GET_LATE_IFACE(BINTOOLS, bintools);
-
-	if (sdktools != NULL && bintools != NULL) {
+	if (sdktools != NULL && bintools != NULL)
 		Load();
-	}
 }
 
 bool SMExtension::SDK_OnMetamodLoad(ISmmAPI* ismm, char* error, size_t maxlen, bool late)
 {
 	GET_V_IFACE_CURRENT(GetEngineFactory, networkStringTableContainerServer, INetworkStringTableContainer, INTERFACENAME_NETWORKSTRINGTABLESERVER);
 	GET_V_IFACE_CURRENT(GetEngineFactory, g_pNetSupport, INetSupport, INETSUPPORT_VERSION_STRING);
-
 	GET_V_IFACE_CURRENT(GetServerFactory, hltvdirector, IHLTVDirector, INTERFACEVERSION_HLTVDIRECTOR);
 	GET_V_IFACE_CURRENT(GetServerFactory, playerinfomanager, IPlayerInfoManager, INTERFACEVERSION_PLAYERINFOMANAGER);
 	GET_V_IFACE_CURRENT(GetServerFactory, gameents, IServerGameEnts, INTERFACEVERSION_SERVERGAMEENTS);
-
 	gpGlobals = ismm->GetCGlobals();
 
 	// For ConVarRef
 	GET_V_IFACE_CURRENT(GetEngineFactory, g_pCVar, ICvar, CVAR_INTERFACE_VERSION);
-
 	return true;
 }
 
 bool SMExtension::QueryInterfaceDrop(SMInterface* pInterface)
 {
-	if (bintools == pInterface) {
+	if (bintools == pInterface)
 		return false;
-	}
-
-	if (sdktools == pInterface) {
-		// Unload if sv couldn't be retrieved
+	if (sdktools == pInterface)
 		return g_pGameIServer != NULL;
-	}
-
 	return IExtensionInterface::QueryInterfaceDrop(pInterface);
 }
 
 void SMExtension::NotifyInterfaceDrop(SMInterface* pInterface)
 {
-	if (bintools == pInterface || ( sdktools == pInterface && g_pGameIServer == NULL )) {
+	if (bintools == pInterface || (sdktools == pInterface && g_pGameIServer == NULL))
 		SDK_OnUnload();
-	}
 }
 
 bool SMExtension::QueryRunning(char* error, size_t maxlength)
 {
 	SM_CHECK_IFACE(SDKTOOLS, sdktools);
 	SM_CHECK_IFACE(BINTOOLS, bintools);
-
 	return true;
 }
